@@ -48,6 +48,94 @@ impl Grid {
         let start = row * self.width;
         &self.cells[start..start + self.width]
     }
+
+    fn is_open(&self, row: usize, col: usize) -> bool {
+        self.get(row, col) == Cell::Open
+    }
+
+    fn starts_across(&self, row: usize, col: usize) -> bool {
+        self.is_open(row, col)
+            && !(col > 0 && self.is_open(row, col - 1))
+            && col + 1 < self.width
+            && self.is_open(row, col + 1)
+    }
+
+    fn starts_down(&self, row: usize, col: usize) -> bool {
+        self.is_open(row, col)
+            && !(row > 0 && self.is_open(row - 1, col))
+            && row + 1 < self.height
+            && self.is_open(row + 1, col)
+    }
+
+    fn across_len(&self, row: usize, col: usize) -> usize {
+        (col..self.width)
+            .take_while(|&c| self.is_open(row, c))
+            .count()
+    }
+
+    fn down_len(&self, row: usize, col: usize) -> usize {
+        (row..self.height)
+            .take_while(|&r| self.is_open(r, col))
+            .count()
+    }
+
+    /// Assigns standard crossword numbering: scanning row-major, any open
+    /// square that starts an across entry (nothing open to its left, an
+    /// open square to its right) and/or a down entry (nothing open above
+    /// it, an open square below) gets the next number. A square that starts
+    /// both gets one number shared by both its across and down entry, which
+    /// is why numbering has to be computed before clues can be listed.
+    pub fn number(&self) -> Numbering {
+        let mut across = Vec::new();
+        let mut down = Vec::new();
+        let mut number = 0u32;
+
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let starts_across = self.starts_across(row, col);
+                let starts_down = self.starts_down(row, col);
+                if !starts_across && !starts_down {
+                    continue;
+                }
+                number += 1;
+                if starts_across {
+                    across.push(Clue {
+                        number,
+                        row,
+                        col,
+                        len: self.across_len(row, col),
+                    });
+                }
+                if starts_down {
+                    down.push(Clue {
+                        number,
+                        row,
+                        col,
+                        len: self.down_len(row, col),
+                    });
+                }
+            }
+        }
+
+        Numbering { across, down }
+    }
+}
+
+/// A single across or down entry: the clue number, its starting square, and
+/// how many open squares it spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Clue {
+    pub number: u32,
+    pub row: usize,
+    pub col: usize,
+    pub len: usize,
+}
+
+/// The across and down clue numbering derived from a grid's block pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Numbering {
+    pub across: Vec<Clue>,
+    pub down: Vec<Clue>,
 }
 
 /// Why a piece of input couldn't be turned into a `Grid`.
@@ -226,5 +314,57 @@ mod tests {
         let canonical = format_grid(&grid);
         let reparsed = normalize(&canonical).unwrap();
         assert_eq!(grid, reparsed);
+    }
+
+    #[test]
+    fn numbers_a_simple_grid() {
+        // 1 2 3
+        // # 4 .
+        // 5 . .
+        let grid = normalize("...\n#..\n...").unwrap();
+        let numbering = grid.number();
+        assert_eq!(
+            numbering.across,
+            vec![
+                Clue { number: 1, row: 0, col: 0, len: 3 },
+                Clue { number: 4, row: 1, col: 1, len: 2 },
+                Clue { number: 5, row: 2, col: 0, len: 3 },
+            ]
+        );
+        assert_eq!(
+            numbering.down,
+            vec![
+                Clue { number: 2, row: 0, col: 1, len: 3 },
+                Clue { number: 3, row: 0, col: 2, len: 3 },
+            ]
+        );
+    }
+
+    #[test]
+    fn does_not_number_a_single_isolated_square() {
+        // The middle square of the bottom row sits between two blocks with
+        // nothing below it: it's a dead end, not the start of any entry.
+        let grid = normalize("#.#\n...\n#.#").unwrap();
+        let numbering = grid.number();
+        assert_eq!(numbering.down, vec![Clue { number: 1, row: 0, col: 1, len: 3 }]);
+        assert_eq!(numbering.across, vec![Clue { number: 2, row: 1, col: 0, len: 3 }]);
+    }
+
+    #[test]
+    fn shares_one_number_between_across_and_down_starts() {
+        let grid = normalize("..\n..").unwrap();
+        let numbering = grid.number();
+        assert_eq!(numbering.across[0].number, 1);
+        assert_eq!(numbering.down[0].number, 1);
+        assert_eq!(numbering.across.len(), 2);
+        assert_eq!(numbering.down.len(), 2);
+    }
+
+    #[test]
+    fn all_blocked_grid_has_no_clues() {
+        let grid = normalize("##\n##").unwrap();
+        let numbering = grid.number();
+        assert!(numbering.across.is_empty());
+        assert!(numbering.down.is_empty());
     }
 }

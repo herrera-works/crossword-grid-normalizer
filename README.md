@@ -67,8 +67,26 @@ it prints the canonical form to stdout (`X` and `*` become `#`; `O` becomes
 On invalid input (ragged rows, unrecognized characters, or an empty file)
 it prints the reason to stderr and exits non-zero instead of guessing.
 
+## Clue numbering
+
+`Grid::number()` assigns standard crossword numbers: scanning row by row,
+any open square that starts an across entry (nothing open to its left, an
+open square to its right) or a down entry (nothing open above it, an open
+square below) gets the next number. A square that starts both shares one
+number between its across and down entry, same as in a printed puzzle.
+
+```rust
+use gridnorm::normalize;
+
+let grid = normalize("...\n#..\n...").unwrap();
+let numbering = grid.number();
+
+assert_eq!(numbering.across[0].number, 1); // top-left, spans the whole row
+assert_eq!(numbering.down[0].number, 2);   // top-middle, spans the whole column
+```
+
 ## Status
 
-Early skeleton: block/open grids only. No support yet for clue numbers,
-symmetry checks, or any file format beyond plain text. See the roadmap in
+Block/open grids with across/down clue numbering. No support yet for
+symmetry checks or any file format beyond plain text. See the roadmap in
 commit history for what's next.
