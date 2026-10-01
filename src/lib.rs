@@ -79,6 +79,34 @@ impl Grid {
             .count()
     }
 
+    /// Returns every pair of squares that breaks 180-degree rotational
+    /// symmetry, i.e. where a square and its mirror through the grid's
+    /// center disagree. Each pair is reported once, as `(row, col)` of the
+    /// earlier square in row-major order followed by its partner, so a
+    /// single mismatch is never listed twice. The center square of an
+    /// odd-sized grid is its own partner and can't mismatch.
+    pub fn symmetry_violations(&self) -> Vec<((usize, usize), (usize, usize))> {
+        let mut violations = Vec::new();
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let mirror = (self.height - 1 - row, self.width - 1 - col);
+                if (row, col) >= mirror {
+                    continue;
+                }
+                if self.get(row, col) != self.get(mirror.0, mirror.1) {
+                    violations.push(((row, col), mirror));
+                }
+            }
+        }
+        violations
+    }
+
+    /// True if the block pattern looks the same after a half turn, which is
+    /// the convention for American-style crosswords.
+    pub fn is_rotationally_symmetric(&self) -> bool {
+        self.symmetry_violations().is_empty()
+    }
+
     /// Assigns standard crossword numbering: scanning row-major, any open
     /// square that starts an across entry (nothing open to its left, an
     /// open square to its right) and/or a down entry (nothing open above
@@ -358,6 +386,34 @@ mod tests {
         assert_eq!(numbering.down[0].number, 1);
         assert_eq!(numbering.across.len(), 2);
         assert_eq!(numbering.down.len(), 2);
+    }
+
+    #[test]
+    fn accepts_symmetric_grid() {
+        let grid = normalize("#..\n...\n..#").unwrap();
+        assert!(grid.is_rotationally_symmetric());
+        assert!(grid.symmetry_violations().is_empty());
+    }
+
+    #[test]
+    fn reports_each_mismatched_pair_once() {
+        let grid = normalize("#..\n...\n...").unwrap();
+        assert!(!grid.is_rotationally_symmetric());
+        assert_eq!(grid.symmetry_violations(), vec![((0, 0), (2, 2))]);
+    }
+
+    #[test]
+    fn even_sized_grid_symmetry() {
+        let ok = normalize("#.\n.#").unwrap();
+        assert!(ok.is_rotationally_symmetric());
+        let bad = normalize("#.\n##").unwrap();
+        assert_eq!(bad.symmetry_violations(), vec![((0, 1), (1, 0))]);
+    }
+
+    #[test]
+    fn center_square_is_its_own_partner() {
+        let grid = normalize("...\n.#.\n...").unwrap();
+        assert!(grid.is_rotationally_symmetric());
     }
 
     #[test]

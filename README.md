@@ -85,8 +85,22 @@ assert_eq!(numbering.across[0].number, 1); // top-left, spans the whole row
 assert_eq!(numbering.down[0].number, 2);   // top-middle, spans the whole column
 ```
 
+## Symmetry
+
+American-style grids are expected to look the same after a half turn.
+`Grid::is_rotationally_symmetric()` checks that, and
+`Grid::symmetry_violations()` lists each square whose mirror through the
+center disagrees with it (every pair once, earlier square first).
+
+From the command line, `--check-symmetry` prints the grid as usual, then
+reports any mismatched pairs to stderr and exits non-zero:
+
+```
+gridnorm --check-symmetry path/to/grid.txt
+```
+
 ## Status
 
-Block/open grids with across/down clue numbering. No support yet for
-symmetry checks or any file format beyond plain text. See the roadmap in
+Block/open grids with across/down clue numbering and a rotational symmetry
+check. No support yet for any file format beyond plain text. See the roadmap in
 commit history for what's next.
